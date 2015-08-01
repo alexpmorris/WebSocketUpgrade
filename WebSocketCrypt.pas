@@ -112,7 +112,8 @@ var inflate = new pako.Inflate({ windowBits: -15, to: 'string'});
 
 
 *)
-
+
+
 unit WebSocketCrypt;
 
 interface
