@@ -37,7 +37,7 @@ function WebSocketSendData(aData: AnsiString; const wsConn: TWebSocketConnection
 **Streaming zlib inflate/deflate functions**
 
 ```pascal
-//uses ZLibEx, ZLibExApi
+//uses ZLibEx, ZLibExApi - windowBits = -1..-15 for raw deflate, or 31 for gzip
 //create a buffer from stream (same can be used for compress and decompress): FZBuffer := TZlibBuffer.Create;
 //create Compress Stream:  ZCompressCheck(ZDeflateInit2(outFZStream, zcLevel8, -15, 9, zsDefault));
 //compress: compText = ZlibStreamCompressString(outFZStream,messageText,FZBuffer);
@@ -45,7 +45,7 @@ function WebSocketSendData(aData: AnsiString; const wsConn: TWebSocketConnection
 //reset Compress Stream:  ZCompressCheck(ZDeflateReset(outFZStream));
 function ZlibStreamCompressString(var outFZStream: TZStreamRec; const aText: AnsiString; const zBuf: TZlibBuffer): AnsiString;
 
-//uses ZLibEx, ZLibExApi
+//uses ZLibEx, ZLibExApi - windowBits = -1..-15 for raw deflate, or 31 for gzip
 //create a buffer from stream (same can be used for compress and decompress): FZBuffer := TZlibBuffer.Create;
 //create Decompress Stream:  ZDecompressCheck(ZInflateInit2(inFZStream, -15));
 //decompress: decompText = ZlibStreamDecompressString(inFZStream,compressedText,FZBuffer);
