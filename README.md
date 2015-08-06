@@ -1,7 +1,7 @@
 # WebSocketUpgrade
 Easily upgrade any TCP Socket class to a WebSocket implementation including streaming deflate
 
-I assembled these classes because I could not find a simple and free websocket implementation, including streaming deflate, that could be overloaded onto any standard Delphi/FreePascal socket class.  I also included an AES256-based openssl-compatible encryption package (or, more technically, AES-256-CBC + HMAC-SHA-256).
+I assembled these classes because I could not find a simple and free websocket implementation, including streaming deflate, that could be overloaded onto any standard Delphi/FreePascal socket class.  I also included an AES256-based openssl-compatible encryption package (or, more technically, AES-256-CBC + HMAC-SHA-256).  If you require a more comprehensive encryption, hashing, and authentication library, I recommend you check out my [libsodium delphi wrapper](https://github.com/alexpmorris/libsodium-delphi).
 
 This approach makes WebSockets seem much less daunting to manage and implement.  As you can tell from the code, a WebSocket is a relatively simple protocol layer over a standard TCP socket connection.  It can also easily be abstracted away from any underlying socket class.  If not currently available, it should also be a straight-forward process to port similar functionality to other languages.
 
