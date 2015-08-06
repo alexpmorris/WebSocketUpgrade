@@ -3,6 +3,9 @@
 OpenSSL-compatible encrypt/decrypt routines can be used to protect non-TLS (wss://) websocket
 connections using a shared secret key in a text-friendly manner.
 
+v0.11, 2015-08-05, by Alexander Morris
+  added more notes and sample code, also added time_strcmp() and a different random() function
+
 v0.10, 2015-07-31, by Alexander Morris
 
 Requirements: DCPCrypt2
@@ -12,6 +15,9 @@ http://deusty.blogspot.com/2009/04/decrypting-openssl-aes-files-in-c.html
 http://stackoverflow.com/questions/8313992/dcpcrypt-delphi-not-properly-encoding-rijndael
 http://stackoverflow.com/questions/8806481/how-can-i-decrypt-something-with-pycrypto-that-was-encrypted-using-openssl
 http://security.stackexchange.com/questions/20129/how-and-when-do-i-use-hmac
+http://stackoverflow.com/questions/17533675/getting-the-128-most-significant-bits-from-a-hash
+http://codahale.com/a-lesson-in-timing-attacks/
+http://stackoverflow.com/questions/3946869/how-reliable-is-the-random-function-in-delphi
 
 
 The secret key must somehow be preshared, for example, to access a desktop app from a mobile app.
@@ -19,9 +25,22 @@ Additionally, 2FA can be achieved once the mobile client has the key, since the 
 further encrypted and locally stored on the mobile device with a unique password provided by the user.
 Even if the mobile device is lost, the key remains secure as long as the secondary password is unknown.
 
-If you require more comprehensive security / encryption, including automatic key exchange,
-TLS1.2 sockets should be used instead (ie. wss://) using a socket implementation such as
-DnTlsBox in IOCPengine: https://bitbucket.org/voipobjects/iocpengine
+Encryption is tricky and difficult to properly implement, so tread accordingly and be sure you
+know what you are doing.  As one example, look at the link above just on timing attacks.  There are
+also issues with weak random number generators.
+
+If you want to implement a more comprehensive cypto library in Delphi, check out my libsodium.dll wrapper
+( http://github.com/alexpmorris/libsodium-delphi ) which enables you to easily implement fast, highly
+secure asymmmetric key exchange such as Curve25519, a state-of-the-art Diffie-Hellman elliptical-curve
+function suitable for a wide variety of applications, as well as ChaCha20-Poly1305 encryption, which may
+be more efficient especially with older mobile devices.  For more on ChaCha20-Poly1305 and Curve25519, check out:
+https://blog.cloudflare.com/do-the-chacha-better-mobile-performance-with-cryptography/
+https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/
+
+If you require more comprehensive security / encryption out of the box (especially for a standard
+secure server implementation), including automatic key exchange, TLS1.2 sockets should probably be used
+instead (ie. wss://) using a socket implementation such as DnTlsBox in IOCPengine:
+https://bitbucket.org/voipobjects/iocpengine
 
 
 
@@ -37,7 +56,7 @@ in Delphi:
   you should also authenticate the integrity of the encrypted message by including an HMAC+SHA256
   signature along with the encrypted message:
 
-  authHash := GetHmacSha256Auth('mySecretKey',EncryptedMessage);
+  authHash := Copy(GetHmacSha256Auth('mySecretKey',EncryptedMessage),1,32);
 
 
 messages can be easily encrypted/decrypted from javascript using crypto-js:
@@ -66,12 +85,12 @@ function hex2a(hex) {
 
 //encrypt
   var encryptedMsg = CryptoJS.AES.encrypt(msg,hash).toString();
-  encryptedMsg += CryptoJS.HmacSHA256(encryptedMsg,hash);
+  encryptedMsg += CryptoJS.HmacSHA256(encryptedMsg,hash).toString().substr(0,32);
 
-//decrypt  
-  var hmacCheck = json.substr(encryptedMsg.length-64,64);
-  encryptedMsg = encryptedMsg.substr(0,encryptedMsg.length-64);
-  if (hmacCheck == CryptoJS.HmacSHA256(encryptedMsg,hash)) {
+//decrypt
+  var hmacCheck = json.substr(encryptedMsg.length-32,32);
+  encryptedMsg = encryptedMsg.substr(0,encryptedMsg.length-32);
+  if (hmacCheck == CryptoJS.HmacSHA256(encryptedMsg,hash).toString().substr(0,32)) {
     packet = hex2a(CryptoJS.AES.decrypt(encryptedMsg,hash).toString());
   } else { packet = "cannotAuthenticatePacket"; }
 
@@ -118,13 +137,13 @@ unit WebSocketCrypt;
 
 interface
 
-uses SysUtils, DCPrijndael, DCPmd5, DCPbase64, DCPsha1, DCPsha256;
+uses SysUtils, DCPrijndael, DCPmd5, DCPbase64, DCPsha1, DCPsha256, crandom;
 
 
 //256-bit openssl-compatible AES format text-based packet encryption/decryption functions
 //  testStr :='encrypt me!';
-//  EncryptOpenSSLAES256CBC('mySecretKey',testStr);  // testStr is now encrypted
-//  DecryptOpenSSLAES256CBC('mySecretKey',testStr);  // testStr should again equal 'encrypt me!'
+//  EncryptOpenSSLAES256CBC('hashOfMySecretKey',testStr);  // testStr is now encrypted
+//  DecryptOpenSSLAES256CBC('hashOfMySecretKey',testStr);  // testStr should again equal 'encrypt me!'
 //
 //  messages can be easily encrypted/decrypted from javascript using crypto-js
 procedure EncryptOpenSSLAES256CBC(const hashS: AnsiString; var msgS: AnsiString);
@@ -144,6 +163,9 @@ function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: inte
 
 //create an HMAC + SHA256 message authentication using mySecretKey
 function GetHmacSha256Auth(const mySecretKey,myMessage: AnsiString): AnsiString;
+
+//constant time string comparision in delphi to prevent timing attacks, based on XORing
+function time_strcmp(const str1, str2: AnsiString): boolean;
 
 
 implementation
@@ -170,8 +192,9 @@ begin
   if (hashS = '') then exit;
 
   try
-    salt := '';  tmpKeyS := '';  pwdS := '';
-    for i := 0 to 7 do salt := salt + chr(random(254)+1);
+    tmpKeyS := '';  pwdS := '';
+    SetLength(salt,8);
+    CryptGenRandomBytes(@salt[1],8);
     PKS7Padding(msgS);
     pwdS := hashS;
     Hash := TDCP_md5.Create(nil);
@@ -260,8 +283,14 @@ function CreateSalt(const len: integer): AnsiString;
 var ch: AnsiChar;
 begin
   result := '';
-  while (length(result)<len) do begin ch := chr(45+random(65)); if (ch in ['0'..'9','A'..'Z','a'..'z','$','&','#','@','_','*','!','~','.','?',':',';','^','%']) then result:=result+ch; end;
+  while (length(result)<len) do begin
+    //ch := chr(45+random(65));
+    CryptGenRandomBytes(@ch,1);
+    ch := AnsiChar(45+(Ord(ch) mod 65));
+    if (ch in ['0'..'9','A'..'Z','a'..'z','$','&','#','@','_','*','!','~','.','?',':',';','^','%']) then result:=result+ch;
+   end;
 end;
+
 
 //create an SHA256 hash of mySecretKey using mySalt with iter iterations
 function GetSha256KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer): AnsiString;
@@ -303,6 +332,24 @@ var tmpHashS: AnsiString;
 begin
   tmpHashS := CalcHMAC(myMessage, mySecretKey, TDCP_sha256);
   result := '';  for i := 1 to 32 do begin result := result + lowercase(IntToHex(ord(tmpHashS[i]),2)); end;
+end;
+
+
+//constant time string comparision in delphi to prevent timing attacks, based on XORing
+//http://codahale.com/a-lesson-in-timing-attacks/
+//http://codereview.stackexchange.com/questions/13512/constant-time-string-comparision-in-php-to-prevent-timing-attacks
+function time_strcmp(const str1, str2: AnsiString): boolean;
+var res: array of byte;
+    i,shortLen,sums: cardinal;
+begin
+  result := false;
+  if (length(str1) < length(str2)) then shortLen := Length(str1) else shortLen := length(str2);
+  SetLength(res,shortLen);
+  for i := 0 to shortLen-1 do res[i] := ord(str1[i+1]) xor ord(str2[i+1]);
+  if Length(str1) <> length(str2) then exit;
+  sums := 0;
+  for i := shortLen-1 downto 0 do sums := sums + res[i];
+  if (sums = 0) then result := true;
 end;
 
 

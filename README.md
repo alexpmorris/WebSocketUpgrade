@@ -89,4 +89,7 @@ function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: inte
 
 //create an HMAC + SHA256 message authentication using mySecretKey
 function GetHmacSha256Auth(const mySecretKey,myMessage: AnsiString): AnsiString;
+
+//constant time string comparision in delphi to prevent timing attacks, based on XORing
+function time_strcmp(const str1, str2: AnsiString): boolean;
 ```
