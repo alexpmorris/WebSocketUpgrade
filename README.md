@@ -85,10 +85,10 @@ function GetSha256KeyHash(const mySecretKey,mySalt: AnsiString; const iter: inte
 //create a 256-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
 //shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2()
 //shaMode=2 to uses Sha256 as hash function
-function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer; const shaMode: Byte): AnsiString;
+function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer; const shaMode: Byte; const asHex: Boolean = true): AnsiString;
 
 //create an HMAC + SHA256 message authentication using mySecretKey
-function GetHmacSha256Auth(const mySecretKey,myMessage: AnsiString): AnsiString;
+function GetHmacSha256Auth(const mySecretKey,myMessage: AnsiString; const asHex: Boolean = true): AnsiString;
 
 //constant time string comparision in delphi to prevent timing attacks, based on XORing
 function time_strcmp(const str1, str2: AnsiString): boolean;

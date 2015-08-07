@@ -1,3 +1,4 @@
+unit DCPauth;
 //  DCPCrypt2 module implements:
 //    HMAC (Hash-based message authentication code)
 //    PBKDF1/PBKDF2 (Password-Based Key Derivation Function)
@@ -5,8 +6,17 @@
 //
 //  adapted from code found at http://keit.co/p/dcpcrypt-hmac-rfc2104/
 
+interface
+
 uses dcpcrypt2, Math;
- 
+
+
+function CalcHMAC(message, key: AnsiString; hash: TDCP_hashclass): AnsiString;
+function PBKDF2(pass, salt: AnsiString; count, kLen: Integer; hash: TDCP_hashclass): AnsiString;
+
+
+implementation
+
 function RPad(x: AnsiString; c: Char; s: Integer): AnsiString;
 var
   i: Integer;
@@ -16,7 +26,7 @@ begin
     for i := 1 to s-Length(x) do
       Result := Result + c;
 end;
- 
+
 function XorBlock(s, x: AnsiString): AnsiString;  {$ifdef Version2005Plus} inline; {$endif}
 var
   i: Integer;
@@ -25,7 +35,7 @@ begin
   for i := 1 to Length(s) do
     Result[i] := Char(Byte(s[i]) xor Byte(x[i]));
 end;
- 
+
 function CalcDigest(text: AnsiString; dig: TDCP_hashclass): AnsiString;
 var
   x: TDCP_hash;
@@ -40,7 +50,7 @@ begin
     x.Free;
   end;
 end;
- 
+
 function CalcHMAC(message, key: AnsiString; hash: TDCP_hashclass): AnsiString;
 const
   blocksize = 64;
@@ -64,7 +74,7 @@ begin
 end;
 
 function PBKDF2(pass, salt: AnsiString; count, kLen: Integer; hash: TDCP_hashclass): AnsiString;
- 
+
   function IntX(i: Integer): AnsiString; {$ifdef Version2005Plus} inline; {$endif}
   begin
     Result := Char(i shr 24) + Char(i shr 16) + Char(i shr 8) + Char(i);
@@ -89,4 +99,8 @@ begin
   end;
   Result := Copy(T, 1, kLen);
 end;
+
+initialization
+
+end.
 
