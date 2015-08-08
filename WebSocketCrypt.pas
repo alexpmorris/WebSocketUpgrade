@@ -3,7 +3,7 @@
 OpenSSL-compatible encrypt/decrypt routines can be used to protect non-TLS (wss://) websocket
 connections using a shared secret key in a text-friendly manner.
 
-v0.11, 2015-08-06, by Alexander Morris
+v0.11, 2015-08-08, by Alexander Morris
   added more notes and sample code, added time_strcmp() and a different random() function
   added asHex (default) for GetHmacSha256Auth() and GetPBKDF2KeyHash()
 
@@ -138,7 +138,7 @@ unit WebSocketCrypt;
 
 interface
 
-uses SysUtils, DCPrijndael, DCPmd5, DCPbase64, DCPsha1, DCPsha256, DCPauth, crandom;
+uses SysUtils, DCPcrypt2, DCPrijndael, DCPmd5, DCPbase64, DCPsha1, DCPsha256, DCPsha512, DCPauth, crandom;
 
 
 //256-bit openssl-compatible AES format text-based packet encryption/decryption functions
@@ -157,9 +157,10 @@ function CreateSalt(const len: integer): AnsiString;
 //create an SHA256 hash of mySecretKey using mySalt with iter iterations
 function GetSha256KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer): AnsiString;
 
-//create a 256-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
-//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2()
-//shaMode=2 to uses Sha256 as hash function
+//create a 256-bit or 512-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
+//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2() - 256-bit output
+//shaMode=2 to uses Sha256 as hash function - 256-bit output
+//shaMode=3 to uses Sha512 as hash function - 512-bit output
 function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer; const shaMode: Byte; const asHex: Boolean = true): AnsiString;
 
 //create an HMAC + SHA256 message authentication using mySecretKey
@@ -311,19 +312,26 @@ begin
 end;
 
 
-//create a 256-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
-//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2()
-//shaMode=2 to uses Sha256 as hash function
+//create a 256-bit or 512-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
+//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2() - 256-bit output
+//shaMode=2 to uses Sha256 as hash function - 256-bit output
+//shaMode=3 to uses Sha512 as hash function - 512-bit output
 function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer; const shaMode: Byte; const asHex: Boolean = true): AnsiString;
-var tmpHashS,hexVal: AnsiString;
-    i: integer;
+var hash: TDCP_hashclass;
+    tmpHashS,hexVal: AnsiString;
+    i,useBytes: integer;
 begin
-  if (shaMode <= 1) then tmpHashS := PBKDF2(mySecretKey,mySalt,iter,256 div 8,TDCP_sha1) else
-    tmpHashS := PBKDF2(mySecretKey,mySalt,iter,256 div 8,TDCP_sha256);
+  useBytes := 32;  // 256-bit output
+  if (shaMode <= 1) then hash := TDCP_sha1 else
+    if (shaMode = 2) then hash := TDCP_sha256 else begin
+      hash := TDCP_sha512;
+      useBytes := 64;  // 512-bit output
+     end;
+  tmpHashS := PBKDF2(mySecretKey,mySalt,iter,useBytes{256 div 8},hash);
   if asHex then begin
-    SetLength(result,64);
+    SetLength(result,useBytes*2{64});
     i := 0;
-    while (i < 32) do begin
+    while (i < useBytes{32}) do begin
       hexVal := lowercase(IntToHex(ord(tmpHashS[i+1]),2));
       Move(hexVal[1],Result[(i*2)+1],2);
       i := i + 1;

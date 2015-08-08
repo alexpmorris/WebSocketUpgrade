@@ -82,9 +82,10 @@ function CreateSalt(const len: integer): AnsiString;
 //create an SHA256 hash of mySecretKey using mySalt with iter iterations
 function GetSha256KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer): AnsiString;
 
-//create a 256-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
-//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2()
-//shaMode=2 to uses Sha256 as hash function
+//create a 256-bit or 512-bit PBKDF2 hash of mySecretKey using mySalt with iter iterations
+//shaMode=1 to use Sha1 for compatibility with CryptoJS.PBKDF2() - 256-bit output
+//shaMode=2 to uses Sha256 as hash function - 256-bit output
+//shaMode=3 to uses Sha512 as hash function - 512-bit output
 function GetPBKDF2KeyHash(const mySecretKey,mySalt: AnsiString; const iter: integer; const shaMode: Byte; const asHex: Boolean = true): AnsiString;
 
 //create an HMAC + SHA256 message authentication using mySecretKey
