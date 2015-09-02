@@ -122,7 +122,7 @@ var i: integer;
     apiSktData: APISktDataTypePtr;
 begin
   i:=1; setsockopt(Socket.Handle,IPPROTO_TCP,TCP_NODELAY,PChar(@i),sizeof(i));
-  ServerMemo.Lines.Insert(0,'connected from '+Socket.RemoteHost+':'+IntToStr(Socket.LocalPort));
+  ServerMemo.Lines.Insert(0,'connected from '+Socket.RemoteAddress+':'+IntToStr(Socket.LocalPort));
   new(apiSktData);
   FillChar(apiSktData^,sizeof(apiSktData^),0);
   Socket.Data := apiSktData;
@@ -149,7 +149,7 @@ begin
         apiSktData.webSocket := CreateServerWebSocketConnection(BufS,15{deflateMaxWindowBits});
         if (apiSktData.webSocket <> nil) and (apiSktData.webSocket.fWebSocketHeaders <> '') then begin
           try Socket.SendText(apiSktData.webSocket.fWebSocketHeaders); except end;
-          ServerMemo.Lines.Insert(0,'ws_upgrade '+Socket.RemoteHost+':'+IntToStr(Socket.LocalPort)+' '+apiSktData.webSocket.fExtension);
+          ServerMemo.Lines.Insert(0,'ws_upgrade '+Socket.RemoteAddress+':'+IntToStr(Socket.LocalPort)+' '+apiSktData.webSocket.fExtension);
          end;
         i := Pos(#13#10#13#10,BufS);
         if (i<>0) then Delete(BufS,1,i+3) else BufS := '';
@@ -240,7 +240,7 @@ var i: integer;
     apiSktData: APISktDataTypePtr;
 begin
   i:=1; setsockopt(Socket.Handle,IPPROTO_TCP,TCP_NODELAY,PChar(@i),sizeof(i));
-  ClientMemo.Lines.Insert(0,'connected to '+Socket.RemoteHost+':'+IntToStr(Socket.RemotePort));
+  ClientMemo.Lines.Insert(0,'connected to '+Socket.RemoteAddress+':'+IntToStr(Socket.RemotePort));
   new(apiSktData);
   FillChar(apiSktData^,sizeof(apiSktData^),0);
   Socket.Data := apiSktData;
@@ -270,7 +270,7 @@ begin
       if (Pos(': websocket',BufS) <> 0) then begin
         ConfirmClientWebSocketConnection(apiSktData.webSocket,BufS);
         if (apiSktData.webSocket <> nil) and (apiSktData.webSocket.fWebSocketHeaders <> '') then begin
-          ClientMemo.Lines.Insert(0,'ws_upgrade '+Socket.RemoteHost+':'+IntToStr(Socket.LocalPort)+' '+apiSktData.webSocket.fExtension);
+          ClientMemo.Lines.Insert(0,'ws_upgrade '+Socket.RemoteAddress+':'+IntToStr(Socket.LocalPort)+' '+apiSktData.webSocket.fExtension);
          end;
         i := Pos(#13#10#13#10,BufS);
         if (i<>0) then Delete(BufS,1,i+3) else BufS := '';

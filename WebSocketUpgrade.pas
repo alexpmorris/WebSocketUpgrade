@@ -4,7 +4,8 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
-v0.10, 2015-07-31, by Alexander Morris
+v0.11, 2015-09-01, fixed small issue, ignore deprecated 'x-webkit-deflate-frame' (ios)
+v0.10, 2015-07-31, by Alexander Paul Morris
 
 See interface functions for usage details
 
@@ -610,6 +611,7 @@ begin
           fncProtocol := trim(headers.Values['sec-websocket-protocol']);
         if (headers.IndexOfName('sec-websocket-extensions') > -1) then begin
           fncExtensions := trim(headers.Values['sec-websocket-extensions']);
+          // ignore deprecated 'x-webkit-deflate-frame' (ios devices)
           if (Pos('permessage-deflate',fncExtensions) <> 0) then begin
             try
             if (tryDeflate>0) then begin
@@ -637,7 +639,7 @@ begin
             except
               fncExtensions := '-';
             end;
-           end;
+           end else fncExtensions := '-';
          end;
         if (headers.IndexOfName('cookie') > -1) then
           fncCookie := trim(headers.Values['cookie']);
