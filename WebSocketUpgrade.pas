@@ -740,6 +740,8 @@ begin
     if (fncPort<>'80') then fncOrigin := fncOrigin + ':'+fncPort;
 
     fncVersion := 13;
+    fncProtocol := '-';
+    if (wsPara <> '') then fncResourceName := fncResourceName + '?' + wsPara;
     if tryDeflate then fncExtension := 'permessage-deflate; client_max_window_bits';
 
     s := Format('GET %s HTTP/1.1' + #13#10, [fncResourceName]);
