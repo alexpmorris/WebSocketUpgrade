@@ -4,6 +4,8 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
+v0.12, 2017-10-14, fixed minor issues, client_no_context_takeover wasn't set for client,
+                   fncProtocol and fncResourceName weren't properly set
 v0.11, 2015-09-01, fixed small issue, ignore deprecated 'x-webkit-deflate-frame' (ios)
 v0.10, 2015-07-31, by Alexander Paul Morris
 
@@ -734,7 +736,7 @@ var key, s, get: AnsiString;
     fncVersion: integer;
     wsProt,wsUser,wsPass,wsPara: AnsiString;
 begin
-                                                         
+
     ParseURL(wsUri,wsProt,wsUser,wsPass,fncHost,fncPort,fncResourceName,wsPara);
     fncOrigin := wsProt+'://'+fncHost;
     if (fncPort<>'80') then fncOrigin := fncOrigin + ':'+fncPort;
@@ -847,6 +849,7 @@ begin
              if (wsConn.inCompWindowBits < 8) or (wsConn.inCompWindowBits > 15) then wsConn.inCompWindowBits := 15;
             end;
            if (extKey = 'server_no_context_takeover') then wsConn.inCompNoContext := true;
+           if (extKey = 'client_no_context_takeover') then wsConn.outCompNoContext := true;
           end;
          wsConn.isPerMessageDeflate := true;
          wsConn.FZBuffer := TZlibBuffer.Create;
@@ -1130,4 +1133,3 @@ initialization
 
 
 end.
-
