@@ -4,6 +4,8 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
+v0.13, 2019-06-06, added aFinal return value to WebSocketReadData()
+                   to allow for better handling of split packets
 v0.12, 2017-10-14, fixed minor issues, client_no_context_takeover wasn't set for client,
                    fncProtocol and fncResourceName weren't properly set
 v0.11, 2015-09-01, fixed small issue, ignore deprecated 'x-webkit-deflate-frame' (ios)
@@ -162,7 +164,7 @@ function ConfirmClientWebSocketConnection(var wsConn: TWebSocketConnection; str_
 
 
 //if websocket, send data packets here to be decoded
-function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer): AnsiString;
+function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean): AnsiString;
 
 //if websocket, send text to this method to send encoded packet
 //masking should only be used if socket is a ClientSocket and not a ServerSocket
@@ -743,6 +745,8 @@ begin
 
     fncVersion := 13;
     fncProtocol := '-';
+    fncCookie := '-';
+    fncExtension := '-';
     if (wsPara <> '') then fncResourceName := fncResourceName + '?' + wsPara;
     if tryDeflate then fncExtension := 'permessage-deflate; client_max_window_bits';
 
@@ -888,13 +892,13 @@ begin
 end;
 
 
-function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer): AnsiString;
+function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean): AnsiString;
 var timeout, i, j: integer;
     b: byte;
     mask: boolean;
     len, iPos: int64;
     mBytes: array[0..3] of byte;
-    aFinal, aRes1, aRes2, aRes3: boolean;
+    aRes1, aRes2, aRes3: boolean;
 begin
   result := '';
   aCode := -1;
