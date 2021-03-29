@@ -4,6 +4,7 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
+v0.14, 2021-03-28, set aFinal to false if insufficient data for complete packet
 v0.13, 2019-06-06, added aFinal return value to WebSocketReadData()
                    to allow for better handling of split packets
 v0.12, 2017-10-14, fixed minor issues, client_no_context_takeover wasn't set for client,
@@ -916,7 +917,6 @@ begin
       aRes3 := (b and $10) = $10;
       aCode := b and $F;
 
-
       // MASK AND LENGTH
       mask := false;
       if (iPos <= length(aData)) then
@@ -1023,7 +1023,7 @@ begin
           if wsConn.inCompNoContext then ZDecompressCheck(ZInflateReset(wsConn.inFZStream));
          end;
 
-      end;
+      end else aFinal := false;  //still don't have enough data from buffer for complete packet
     except
       result := '';
     end;
