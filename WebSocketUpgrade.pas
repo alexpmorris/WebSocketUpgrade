@@ -4,9 +4,12 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
+v0.16, 2023-12-18, fixed rare issue with fragmentation that could break the message stream,
+                   removed port 443 from wss host/origin 
+v0.15, 2021-04-16, raised default bufSize to 32768, added dataPos to WebSocketReadData()
 v0.14, 2021-03-28, set aFinal to false if insufficient data for complete packet
 v0.13, 2019-06-06, added aFinal return value to WebSocketReadData()
-                   to allow for better handling of split packets
+                   to allow for better handling of split messages
 v0.12, 2017-10-14, fixed minor issues, client_no_context_takeover wasn't set for client,
                    fncProtocol and fncResourceName weren't properly set
 v0.11, 2015-09-01, fixed small issue, ignore deprecated 'x-webkit-deflate-frame' (ios)
@@ -109,7 +112,7 @@ const
 type
   TZlibBuffer = class
   published
-    constructor Create(bufSize: Cardinal = 16384);
+    constructor Create(bufSize: Cardinal = 32768);
     Destructor Destroy; override;
   public
     bufferSize: Cardinal;
@@ -165,7 +168,18 @@ function ConfirmClientWebSocketConnection(var wsConn: TWebSocketConnection; str_
 
 
 //if websocket, send data packets here to be decoded
-function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean): AnsiString;
+//it is now up to caller to remove processed messages from stream:
+//  dataPos := 0;
+//  repeat
+//    prvDataPos := dataPos;
+//    MsgS := MsgS + WebSocketReadData(wsData,wsObj.WSConn,aCode,aFinal,dataPos);
+//    if aFinal and (MsgS <> '') then begin
+//      {process message}
+//      MsgS := '';
+//     end;
+//  until (prvDataPos = dataPos) or (dataPos > length(wsData));
+//  if (dataPos > 1) then delete(wsData,1,dataPos-1);
+function WebSocketReadData(const aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean; var dataPos: cardinal): AnsiString;
 
 //if websocket, send text to this method to send encoded packet
 //masking should only be used if socket is a ClientSocket and not a ServerSocket
@@ -742,7 +756,7 @@ begin
 
     ParseURL(wsUri,wsProt,wsUser,wsPass,fncHost,fncPort,fncResourceName,wsPara);
     fncOrigin := wsProt+'://'+fncHost;
-    if (fncPort<>'80') then fncOrigin := fncOrigin + ':'+fncPort;
+    if (fncPort<>'80') and (fncPort<>'443') then fncOrigin := fncOrigin + ':'+fncPort;
 
     fncVersion := 13;
     fncProtocol := '-';
@@ -754,7 +768,8 @@ begin
     s := Format('GET %s HTTP/1.1' + #13#10, [fncResourceName]);
     s := s + Format('Upgrade: websocket' + #13#10, []);
     s := s + Format('Connection: Upgrade' + #13#10, []);
-    s := s + Format('Host: %s:%s' + #13#10, [fncHost, fncPort]);
+    if (fncPort<>'80') and (fncPort<>'443') then s := s + Format('Host: %s:%s' + #13#10, [fncHost, fncPort]) else
+      s := s + Format('Host: %s' + #13#10, [fncHost]);
 
     for I := 1 to 16 do key := key + ansichar(Random(85) + 32);
     key := EncodeBase64(key);
@@ -893,18 +908,20 @@ begin
 end;
 
 
-function WebSocketReadData(var aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean): AnsiString;
+function WebSocketReadData(const aData: AnsiString; const wsConn: TWebSocketConnection; var aCode: integer; var aFinal: boolean; var dataPos: cardinal): AnsiString;
 var timeout, i, j: integer;
     b: byte;
-    mask: boolean;
-    len, iPos: int64;
+    mask, got_len, got_mask: boolean;
+    len, iPos: cardinal;
     mBytes: array[0..3] of byte;
     aRes1, aRes2, aRes3: boolean;
 begin
   result := '';
   aCode := -1;
-  if (aData = '') then exit;
-  len := 0;  iPos := 1;
+  if (aData = '') then begin dataPos := 0; exit; end;
+  len := 0;  iPos := dataPos;
+  if (iPos <= 1) then iPos := 1;
+  got_len := false;  got_mask := false;
 
   b := ord(aData[iPos]);  iPos:=iPos+1;
 
@@ -934,6 +951,7 @@ begin
             begin
               b := ord(aData[iPos]);  iPos:=iPos+1;
               len := len + b;
+              got_len := true;
             end;
           end;
         end
@@ -979,9 +997,10 @@ begin
             begin
               b := ord(aData[iPos]);  iPos:=iPos+1;
               len := len + b;
+              got_len := true;
             end;
           end;
-        end;
+        end else got_len := true;
       end;
 
       if (iPos <= length(aData)) and (wsConn.fRequireMasking) and (not mask) then
@@ -991,6 +1010,7 @@ begin
       end;
 
       // MASKING KEY
+      if (not mask) then got_mask := true else
       if (mask) and (iPos <= length(aData)) then
       begin
         if (iPos <= length(aData)) then begin
@@ -1004,10 +1024,11 @@ begin
          end;
         if (iPos <= length(aData)) then begin
           mBytes[3] := ord(aData[iPos]);  iPos:=iPos+1;
+          got_mask := true;
          end;
       end;
       // READ DATA
-      if (iPos+len-1 <= length(aData)) then
+      if got_len and got_mask and (iPos+len-1 <= length(aData)) then
       begin
         //process complete packet and remove from incoming stream
         for i := 0 to len-1 do begin
@@ -1015,7 +1036,7 @@ begin
             result := result + chr(Ord(aData[iPos+i]) xor mBytes[i mod 4]);
           end else result := result + aData[iPos+i];
          end;
-        delete(aData,1,iPos+len-1);
+        dataPos := iPos+len;
 
         if aRes1 and wsConn.isPerMessageDeflate then begin {deflate}
           //result := ZlibDecompressString(result,-1*wsConn.InCompWindowBits);
@@ -1029,7 +1050,6 @@ begin
     end;
   finally
   end;
-
 end;
 
 
@@ -1037,7 +1057,7 @@ function WebSocketSendData(aData: AnsiString; const wsConn: TWebSocketConnection
 var b: byte;
     s: AnsiString;
     mBytes: array[0..3] of byte;
-    len: int64;
+    len: cardinal;
     aFinal, aRes1, aRes2, aRes3: boolean;
     i,j: integer;
 begin
@@ -1114,7 +1134,7 @@ end;
 
 //TZlibBuffer class primitives
 
-constructor TZlibBuffer.Create(bufSize: Cardinal = 16384);
+constructor TZlibBuffer.Create(bufSize: Cardinal = 32768);
 begin
   SetBufferSize(bufSize);
 end;
