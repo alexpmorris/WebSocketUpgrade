@@ -4,8 +4,10 @@ used code from Bauglir Internet Library as framework to easily upgrade any
 TCP Socket class to a WebSocket implementation including streaming deflate that can
 maintain current zlib context and state
 
+v0.17, 2025-12-23, raised default bufSize to 65536, fixed large packet framentation issue with zlib inflate,
+                   other optimizations
 v0.16, 2023-12-18, fixed rare issue with fragmentation that could break the message stream,
-                   removed port 443 from wss host/origin 
+                   removed port 443 from wss host/origin
 v0.15, 2021-04-16, raised default bufSize to 32768, added dataPos to WebSocketReadData()
 v0.14, 2021-03-28, set aFinal to false if insufficient data for complete packet
 v0.13, 2019-06-06, added aFinal return value to WebSocketReadData()
@@ -31,7 +33,6 @@ http://stackoverflow.com/questions/22169036/websocket-permessage-deflate-in-chro
 
 
 {==============================================================================|
-
 | Project : Bauglir Internet Library                                           |
 |==============================================================================|
 | Content: Generic connection and server                                       |
@@ -112,7 +113,7 @@ const
 type
   TZlibBuffer = class
   published
-    constructor Create(bufSize: Cardinal = 32768);
+    constructor Create(bufSize: Cardinal = 65536{32768});
     Destructor Destroy; override;
   public
     bufferSize: Cardinal;
@@ -123,7 +124,7 @@ type
 
   TWebSocketConnection = class
   private
-
+    zFrag: string;
   published
     Constructor Create;
     Destructor Destroy; override;
@@ -271,6 +272,7 @@ begin
   FillChar(inFZStream,SizeOf(inFZStream),0);
   FillChar(outFZStream,SizeOf(outFZStream),0);
   FZBuffer := nil;
+  zFrag := '';
 end;
 
 
@@ -1031,17 +1033,26 @@ begin
       if got_len and got_mask and (iPos+len-1 <= length(aData)) then
       begin
         //process complete packet and remove from incoming stream
-        for i := 0 to len-1 do begin
-          if mask then begin
-            result := result + chr(Ord(aData[iPos+i]) xor mBytes[i mod 4]);
-          end else result := result + aData[iPos+i];
-         end;
+        SetLength(result, len);
+        if mask then begin
+          for i := 0 to len-1 do result[i+1] := chr(Ord(aData[iPos+i]) xor mBytes[i mod 4]);
+         end else Move(aData[iPos], result[1], len);
         dataPos := iPos+len;
 
-        if aRes1 and wsConn.isPerMessageDeflate then begin {deflate}
+        //writeln('aCode:',aCode,' aFinal:',aFinal,' aRes1:',aRes1,' rLen:',length(result),' rLen+zFrag:',length(result+wsConn.zFrag));
+
+        if (wsConn.zFrag <> '') then aRes1 := true;
+        if aRes1 and wsConn.isPerMessageDeflate and aFinal then begin {deflate}
           //result := ZlibDecompressString(result,-1*wsConn.InCompWindowBits);
-          result := ZlibStreamDecompressString(wsConn.inFZStream,result,wsConn.FZBuffer);
+          result := ZlibStreamDecompressString(wsConn.inFZStream,wsConn.zFrag+result,wsConn.FZBuffer);
+          wsConn.zFrag := '';
           if wsConn.inCompNoContext then ZDecompressCheck(ZInflateReset(wsConn.inFZStream));
+         end else
+        if wsConn.isPerMessageDeflate then begin
+          if (aCode = 1) and (not aFinal) then begin
+            wsConn.zFrag := wsConn.zFrag + result;
+            result := '';
+           end;
          end;
 
       end else aFinal := false;  //still don't have enough data from buffer for complete packet
@@ -1134,7 +1145,7 @@ end;
 
 //TZlibBuffer class primitives
 
-constructor TZlibBuffer.Create(bufSize: Cardinal = 32768);
+constructor TZlibBuffer.Create(bufSize: Cardinal = 65536{32768});
 begin
   SetBufferSize(bufSize);
 end;
